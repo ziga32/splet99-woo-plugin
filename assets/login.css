@@ -1,0 +1,196 @@
+body.login {
+	--s99-pink: #ee3e84;
+	--s99-purple: #764d9f;
+	--s99-bg: #111111;
+	--s99-surface: #1b1b1f;
+	--s99-border: #2e2e35;
+	--s99-text: #f4f4f5;
+	--s99-muted: #a1a1aa;
+
+	background:
+		radial-gradient(ellipse at 50% -10%, rgba(118, 77, 159, 0.28), transparent 60%),
+		radial-gradient(ellipse at 50% 110%, rgba(238, 62, 132, 0.14), transparent 55%),
+		var(--s99-bg);
+	background-attachment: fixed;
+	color: var(--s99-text);
+}
+
+body.login #login {
+	width: 340px;
+	max-width: calc(100% - 32px);
+	padding-top: 8vh;
+}
+
+body.login #login h1 a {
+	background-image: url(splet99-logo.png);
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+	width: 260px;
+	height: 47px;
+	margin: 0 auto 28px;
+}
+
+body.login form {
+	background: var(--s99-surface);
+	border: 1px solid var(--s99-border);
+	border-radius: 14px;
+	box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+	padding: 28px 24px;
+	margin-top: 0;
+}
+
+body.login label {
+	color: #d4d4d8;
+}
+
+body.login form .input,
+body.login input[type="text"],
+body.login input[type="password"],
+body.login input[type="email"] {
+	background: var(--s99-bg);
+	border: 1px solid var(--s99-border);
+	border-radius: 8px;
+	color: var(--s99-text);
+	box-shadow: none;
+}
+
+body.login form .input:focus,
+body.login input[type="text"]:focus,
+body.login input[type="password"]:focus,
+body.login input[type="email"]:focus {
+	border-color: var(--s99-pink);
+	box-shadow: 0 0 0 1px var(--s99-pink);
+	outline: none;
+}
+
+body.login input:-webkit-autofill {
+	-webkit-box-shadow: 0 0 0 1000px var(--s99-bg) inset;
+	-webkit-text-fill-color: var(--s99-text);
+	caret-color: var(--s99-text);
+}
+
+body.login .button.wp-hide-pw,
+body.login .button.wp-hide-pw .dashicons {
+	color: var(--s99-muted);
+}
+
+body.login .button.wp-hide-pw:hover .dashicons,
+body.login .button.wp-hide-pw:focus .dashicons {
+	color: var(--s99-pink);
+}
+
+body.login .button.wp-hide-pw:focus {
+	border-color: var(--s99-pink);
+	box-shadow: 0 0 0 1px var(--s99-pink);
+}
+
+body.login input[type="checkbox"] {
+	background: var(--s99-bg);
+	border-color: var(--s99-border);
+}
+
+body.login input[type="checkbox"]:checked::before {
+	content: url("data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2020%2020%27%3E%3Cpath%20d%3D%27M14.83%204.89l1.34.94-5.81%208.38H9.02L5.78%209.67l1.34-1.25%202.57%202.4z%27%20fill%3D%27%23ee3e84%27%2F%3E%3C%2Fsvg%3E");
+}
+
+body.login input[type="checkbox"]:focus {
+	border-color: var(--s99-pink);
+	box-shadow: 0 0 0 1px var(--s99-pink);
+}
+
+body.login .button-primary {
+	background: linear-gradient(135deg, var(--s99-purple), var(--s99-pink));
+	border: 0;
+	border-radius: 8px;
+	color: #fff;
+	text-shadow: none;
+	box-shadow: none;
+	min-height: 40px;
+	padding: 0 20px;
+	font-weight: 600;
+}
+
+body.login .button-primary:hover,
+body.login .button-primary:focus {
+	background: linear-gradient(135deg, var(--s99-purple), var(--s99-pink));
+	filter: brightness(1.12);
+	color: #fff;
+	box-shadow: 0 0 0 2px var(--s99-bg), 0 0 0 4px var(--s99-pink);
+}
+
+body.login #nav,
+body.login #backtoblog {
+	padding: 0 4px;
+}
+
+body.login #nav a,
+body.login #backtoblog a,
+body.login .privacy-policy-page-link a {
+	color: var(--s99-muted);
+}
+
+body.login #nav a:hover,
+body.login #backtoblog a:hover,
+body.login .privacy-policy-page-link a:hover,
+body.login #nav a:focus,
+body.login #backtoblog a:focus,
+body.login .privacy-policy-page-link a:focus {
+	color: var(--s99-pink);
+	box-shadow: none;
+}
+
+body.login #login_error,
+body.login .message,
+body.login .notice,
+body.login .success {
+	background: var(--s99-surface);
+	color: var(--s99-text);
+	border: 1px solid var(--s99-border);
+	border-left: 4px solid var(--s99-purple);
+	border-radius: 8px;
+	box-shadow: none;
+}
+
+body.login #login_error,
+body.login .notice-error {
+	border-left-color: var(--s99-pink);
+}
+
+body.login #login_error a,
+body.login .message a,
+body.login .notice a {
+	color: var(--s99-pink);
+}
+
+body.login .language-switcher label .dashicons {
+	color: var(--s99-muted);
+}
+
+body.login .language-switcher select {
+	background-color: var(--s99-surface);
+	border-color: var(--s99-border);
+	color: var(--s99-text);
+}
+
+body.login .language-switcher .button {
+	background: var(--s99-surface);
+	border-color: var(--s99-border);
+	color: var(--s99-text);
+}
+
+.splet99-login-credit {
+	text-align: center;
+	font-size: 12px;
+	color: #71717a;
+	margin: 32px 0 24px;
+}
+
+.splet99-login-credit a {
+	color: var(--s99-muted, #a1a1aa);
+	text-decoration: none;
+}
+
+.splet99-login-credit a:hover {
+	color: #ee3e84;
+}

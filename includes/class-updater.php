@@ -22,6 +22,39 @@ final class Updater {
 		add_filter( 'plugins_api', array( __CLASS__, 'plugin_info' ), 20, 3 );
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'fix_folder_name' ), 10, 4 );
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'clear_cache' ) );
+
+		// Core's own wp_update_plugins runs on load-plugins.php at priority 10.
+		add_action( 'load-plugins.php', array( __CLASS__, 'owner_fresh_check_start' ), 1 );
+		add_action( 'load-plugins.php', array( __CLASS__, 'owner_fresh_check_end' ), 11 );
+	}
+
+	// Core re-checks at most hourly on the Plugins screen; give the owner a fresh check, at most once a minute.
+	public static function owner_fresh_check_start() {
+		if ( ! Plugin::is_owner() ) {
+			return;
+		}
+
+		$current = get_site_transient( 'update_plugins' );
+
+		if ( is_object( $current ) && isset( $current->last_checked ) && time() - $current->last_checked < MINUTE_IN_SECONDS ) {
+			return;
+		}
+
+		delete_site_transient( self::CACHE );
+		add_filter( 'site_transient_update_plugins', array( __CLASS__, 'expire_last_checked' ) );
+	}
+
+	public static function expire_last_checked( $value ) {
+		if ( is_object( $value ) ) {
+			$value               = clone $value;
+			$value->last_checked = 0;
+		}
+
+		return $value;
+	}
+
+	public static function owner_fresh_check_end() {
+		remove_filter( 'site_transient_update_plugins', array( __CLASS__, 'expire_last_checked' ) );
 	}
 
 	private static function latest() {

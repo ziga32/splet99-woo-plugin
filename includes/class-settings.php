@@ -58,16 +58,20 @@ final class Settings {
 			$fields   = self::TAB_FIELDS;
 			$field    = $fields[ $tab ];
 			$values   = isset( $_POST[ $field ] ) ? (array) wp_unslash( $_POST[ $field ] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-			$settings = Plugin::settings();
+			$stored   = get_option( Plugin::OPTION, array() );
+			$stored   = is_array( $stored ) ? $stored : array();
 
 			if ( 'exempt_users' === $field ) {
-				$settings[ $field ] = array_values( array_filter( array_map( 'absint', $values ) ) );
+				$stored[ $field ] = array_values( array_filter( array_map( 'absint', $values ) ) );
 			} else {
 				// Not sanitize_text_field(): it strips %XX sequences that some menu slugs contain.
-				$settings[ $field ] = array_values( array_filter( array_map( 'trim', array_map( 'wp_strip_all_tags', $values ) ) ) );
+				$stored[ $field ] = array_values( array_filter( array_map( 'trim', array_map( 'wp_strip_all_tags', $values ) ) ) );
 			}
 
-			update_option( Plugin::OPTION, $settings );
+			$saved_tabs           = isset( $stored['saved_tabs'] ) ? (array) $stored['saved_tabs'] : array();
+			$stored['saved_tabs'] = array_values( array_unique( array_merge( $saved_tabs, array( $field ) ) ) );
+
+			update_option( Plugin::OPTION, $stored );
 		}
 
 		wp_safe_redirect( self::tab_url( $tab ? $tab : 'notifications', array( 'updated' => 1 ) ) );
@@ -170,10 +174,11 @@ final class Settings {
 			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
 
-		$hidden = (array) $settings['hidden_plugins'];
+		$hidden = Plugin::hidden_plugins();
 		$self   = Plugin::own_basename();
 		?>
 		<p>Označeni vtičniki so skriti s seznama Vtičniki za vse uporabnike razen <code><?php echo esc_html( Plugin::OWNER ); ?></code>. Še naprej delujejo in se posodabljajo.</p>
+		<?php self::render_default_note( 'hidden_plugins' ); ?>
 		<table class="widefat striped" style="max-width:760px">
 			<thead>
 				<tr>
@@ -208,6 +213,15 @@ final class Settings {
 		<?php
 	}
 
+	private static function render_default_note( $key ) {
+		if ( Plugin::is_saved( $key ) ) {
+			return;
+		}
+		?>
+		<p><em>Privzeto so označeni elementi, ki vsebujejo: <code><?php echo esc_html( implode( ', ', Plugin::DEFAULT_HIDDEN ) ); ?></code>. Po prvem shranjevanju velja tvoja izbira.</em></p>
+		<?php
+	}
+
 	private static function menu_title( $title ) {
 		// Drop counter bubbles such as "Komentarji <span class="awaiting-mod">3</span>".
 		$title = preg_replace( '#<span[^>]*>.*?</span>#s', '', (string) $title );
@@ -218,9 +232,11 @@ final class Settings {
 	private static function render_menu( $settings ) {
 		global $menu, $submenu;
 
-		$hidden = (array) $settings['hidden_menu'];
+		$hidden      = (array) $settings['hidden_menu'];
+		$use_default = ! Plugin::is_saved( 'hidden_menu' );
 		?>
 		<p>Označene postavke levega menija so skrite za vse uporabnike razen <code><?php echo esc_html( Plugin::OWNER ); ?></code>. Skrije se le povezava v meniju, stran ostane dosegljiva z neposrednim naslovom.</p>
+		<?php self::render_default_note( 'hidden_menu' ); ?>
 		<ul style="max-width:760px">
 			<?php foreach ( (array) $menu as $item ) : ?>
 				<?php
@@ -233,7 +249,7 @@ final class Settings {
 				?>
 				<li style="margin:10px 0 4px">
 					<label>
-						<input type="checkbox" name="hidden_menu[]" value="<?php echo esc_attr( $slug ); ?>" <?php checked( in_array( $slug, $hidden, true ) ); ?>>
+						<input type="checkbox" name="hidden_menu[]" value="<?php echo esc_attr( $slug ); ?>" <?php checked( in_array( $slug, $hidden, true ) || ( $use_default && Plugin::matches_default( $slug . ' ' . $title ) ) ); ?>>
 						<strong><?php echo esc_html( $title ? $title : $slug ); ?></strong>
 					</label>
 

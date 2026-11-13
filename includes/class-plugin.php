@@ -16,6 +16,9 @@ final class Plugin {
 	// Admin bar items whose ID or title contains any of these words are hidden.
 	const ADMIN_BAR_HIDE = array( 'novamira' );
 
+	// Plugins and top-level menu items matching these words are hidden until that tab is saved for the first time.
+	const DEFAULT_HIDDEN = array( 'novamira' );
+
 	// Submenu items in a hidden menu are stored as "parent|child".
 	const MENU_SEPARATOR = '|';
 
@@ -44,6 +47,25 @@ final class Plugin {
 				'hidden_menu'    => array(),
 			)
 		);
+	}
+
+	// Tracked per tab: 0.6.0 stored every key on any save, so key presence alone can't be trusted.
+	public static function is_saved( $key ) {
+		$saved = get_option( self::OPTION, array() );
+
+		return is_array( $saved )
+			&& isset( $saved['saved_tabs'] )
+			&& in_array( $key, (array) $saved['saved_tabs'], true );
+	}
+
+	public static function matches_default( $text ) {
+		foreach ( self::DEFAULT_HIDDEN as $needle ) {
+			if ( false !== stripos( (string) $text, $needle ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	// Requiring manage_options too means a stranger who registers "ziga32" on a site gets nothing.
@@ -142,8 +164,23 @@ final class Plugin {
 	// This plugin is always hidden so clients can't deactivate it.
 	public static function hidden_plugins() {
 		$settings = self::settings();
+		$hidden   = (array) $settings['hidden_plugins'];
 
-		return array_merge( (array) $settings['hidden_plugins'], array( self::own_basename() ) );
+		if ( ! self::is_saved( 'hidden_plugins' ) ) {
+			if ( ! function_exists( 'get_plugins' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+
+			foreach ( get_plugins() as $file => $data ) {
+				if ( self::matches_default( $file . ' ' . $data['Name'] ) ) {
+					$hidden[] = $file;
+				}
+			}
+		}
+
+		$hidden[] = self::own_basename();
+
+		return array_values( array_unique( $hidden ) );
 	}
 
 	public static function hide_plugins( $plugins ) {
@@ -176,10 +213,18 @@ final class Plugin {
 	}
 
 	public static function hide_menu_items() {
-		global $submenu;
+		global $menu, $submenu;
 
 		if ( self::is_owner() ) {
 			return;
+		}
+
+		if ( ! self::is_saved( 'hidden_menu' ) ) {
+			foreach ( (array) $menu as $item ) {
+				if ( ! empty( $item[2] ) && self::matches_default( $item[2] . ' ' . wp_strip_all_tags( (string) $item[0] ) ) ) {
+					remove_menu_page( $item[2] );
+				}
+			}
 		}
 
 		$settings = self::settings();

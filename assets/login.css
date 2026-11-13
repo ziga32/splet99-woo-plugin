@@ -178,19 +178,3 @@ body.login .language-switcher .button {
 	border-color: var(--s99-border);
 	color: var(--s99-text);
 }
-
-.splet99-login-credit {
-	text-align: center;
-	font-size: 12px;
-	color: #71717a;
-	margin: 32px 0 24px;
-}
-
-.splet99-login-credit a {
-	color: var(--s99-muted, #a1a1aa);
-	text-decoration: none;
-}
-
-.splet99-login-credit a:hover {
-	color: #ee3e84;
-}

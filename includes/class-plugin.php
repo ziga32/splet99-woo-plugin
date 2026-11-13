@@ -12,12 +12,16 @@ final class Plugin {
 
 	const DASHBOARD_KEEP = array( 'woocommerce_dashboard_status' );
 
+	// Admin bar items whose ID or title contains any of these words are hidden.
+	const ADMIN_BAR_HIDE = array( 'novamira' );
+
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'hide_php_errors' ), 1 );
 		add_action( 'in_admin_header', array( __CLASS__, 'hide_admin_notices' ), PHP_INT_MAX );
 		add_action( 'admin_head', array( __CLASS__, 'hide_admin_notices_css' ) );
 		add_action( 'admin_init', array( __CLASS__, 'hide_welcome_panel' ) );
 		add_action( 'do_meta_boxes', array( __CLASS__, 'hide_dashboard_widgets' ), PHP_INT_MAX );
+		add_action( 'admin_bar_menu', array( __CLASS__, 'hide_admin_bar_items' ), PHP_INT_MAX );
 		add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
 	}
 
@@ -81,6 +85,23 @@ final class Plugin {
 		}
 	}
 
+	public static function hide_admin_bar_items( $wp_admin_bar ) {
+		if ( self::is_owner() ) {
+			return;
+		}
+
+		foreach ( (array) $wp_admin_bar->get_nodes() as $node ) {
+			$haystack = $node->id . ' ' . wp_strip_all_tags( (string) $node->title );
+
+			foreach ( self::ADMIN_BAR_HIDE as $needle ) {
+				if ( false !== stripos( $haystack, $needle ) ) {
+					$wp_admin_bar->remove_node( $node->id );
+					break;
+				}
+			}
+		}
+	}
+
 	public static function add_settings_page() {
 		if ( ! self::is_owner() ) {
 			return;
@@ -116,6 +137,10 @@ final class Plugin {
 							Ostanejo: <code><?php echo esc_html( implode( ', ', self::DASHBOARD_KEEP ) ); ?></code>
 						<?php endif; ?>
 					</td>
+				</tr>
+				<tr>
+					<th scope="row">Admin vrstica</th>
+					<td>Skriti elementi: <code><?php echo esc_html( implode( ', ', self::ADMIN_BAR_HIDE ) ); ?></code></td>
 				</tr>
 			</table>
 		</div>

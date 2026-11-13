@@ -10,10 +10,14 @@ final class Plugin {
 	const OWNER = 'ziga32';
 	const PAGE  = 'splet99-woo-settings';
 
+	const DASHBOARD_KEEP = array( 'woocommerce_dashboard_status' );
+
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'hide_php_errors' ), 1 );
 		add_action( 'in_admin_header', array( __CLASS__, 'hide_admin_notices' ), PHP_INT_MAX );
 		add_action( 'admin_head', array( __CLASS__, 'hide_admin_notices_css' ) );
+		add_action( 'admin_init', array( __CLASS__, 'hide_welcome_panel' ) );
+		add_action( 'do_meta_boxes', array( __CLASS__, 'hide_dashboard_widgets' ), PHP_INT_MAX );
 		add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
 	}
 
@@ -52,6 +56,31 @@ final class Plugin {
 		echo '<style>#wpbody-content .notice:not(.inline),#wpbody-content .update-nag,#wpbody-content div.updated,#wpbody-content div.error{display:none!important}</style>';
 	}
 
+	public static function hide_welcome_panel() {
+		if ( ! self::is_owner() ) {
+			remove_all_actions( 'welcome_panel' );
+		}
+	}
+
+	// do_meta_boxes runs after wp_dashboard_setup, so widgets added late by plugins are caught too.
+	public static function hide_dashboard_widgets( $screen_id ) {
+		global $wp_meta_boxes;
+
+		if ( 'dashboard' !== $screen_id || self::is_owner() || empty( $wp_meta_boxes['dashboard'] ) ) {
+			return;
+		}
+
+		foreach ( $wp_meta_boxes['dashboard'] as $context => $priorities ) {
+			foreach ( (array) $priorities as $priority => $boxes ) {
+				foreach ( array_keys( (array) $boxes ) as $id ) {
+					if ( ! in_array( $id, self::DASHBOARD_KEEP, true ) ) {
+						$wp_meta_boxes['dashboard'][ $context ][ $priority ][ $id ] = false;
+					}
+				}
+			}
+		}
+	}
+
 	public static function add_settings_page() {
 		if ( ! self::is_owner() ) {
 			return;
@@ -78,6 +107,15 @@ final class Plugin {
 				<tr>
 					<th scope="row">Obvestila in napake</th>
 					<td>Skrita za vse uporabnike razen <code><?php echo esc_html( self::OWNER ); ?></code>.</td>
+				</tr>
+				<tr>
+					<th scope="row">Nadzorna plošča</th>
+					<td>
+						Widgeti skriti za vse uporabnike razen <code><?php echo esc_html( self::OWNER ); ?></code>.
+						<?php if ( self::DASHBOARD_KEEP ) : ?>
+							Ostanejo: <code><?php echo esc_html( implode( ', ', self::DASHBOARD_KEEP ) ); ?></code>
+						<?php endif; ?>
+					</td>
 				</tr>
 			</table>
 		</div>

@@ -3,7 +3,7 @@
  * Plugin Name:          Splet99 Woo
  * Plugin URI:           https://github.com/ziga32/splet99-woo-plugin
  * Description:          Orodja Splet99 za spletne trgovine WooCommerce, ki jih vzdržujemo.
- * Version:              0.5.0
+ * Version:              0.6.0
  * Requires at least:    6.0
  * Requires PHP:         7.4
  * Requires Plugins:     woocommerce
@@ -18,12 +18,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SPLET99_WOO_VERSION', '0.5.0' );
+define( 'SPLET99_WOO_VERSION', '0.6.0' );
 define( 'SPLET99_WOO_FILE', __FILE__ );
 define( 'SPLET99_WOO_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SPLET99_WOO_URL', plugin_dir_url( __FILE__ ) );
 
 require_once SPLET99_WOO_DIR . 'includes/class-plugin.php';
+require_once SPLET99_WOO_DIR . 'includes/class-settings.php';
 require_once SPLET99_WOO_DIR . 'includes/class-updater.php';
 
 \Splet99\Woo\Plugin::init();

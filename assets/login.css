@@ -64,10 +64,23 @@ body.login input[type="email"]:focus {
 	outline: none;
 }
 
-body.login input:-webkit-autofill {
-	-webkit-box-shadow: 0 0 0 1000px var(--s99-bg) inset;
-	-webkit-text-fill-color: var(--s99-text);
+/* Browser autofill paints its own light background; the inset shadow covers it, also while focused. */
+body.login form input:-webkit-autofill,
+body.login form input:-webkit-autofill:hover,
+body.login form input:-webkit-autofill:active {
+	-webkit-box-shadow: 0 0 0 1000px var(--s99-bg) inset !important;
+	box-shadow: 0 0 0 1000px var(--s99-bg) inset !important;
+	-webkit-text-fill-color: var(--s99-text) !important;
 	caret-color: var(--s99-text);
+	transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+body.login form input:-webkit-autofill:focus {
+	-webkit-box-shadow: 0 0 0 1000px var(--s99-bg) inset, 0 0 0 1px var(--s99-pink) !important;
+	box-shadow: 0 0 0 1000px var(--s99-bg) inset, 0 0 0 1px var(--s99-pink) !important;
+	-webkit-text-fill-color: var(--s99-text) !important;
+	caret-color: var(--s99-text);
+	transition: background-color 600000s 0s, color 600000s 0s;
 }
 
 body.login .button.wp-hide-pw,

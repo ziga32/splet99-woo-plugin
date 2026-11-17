@@ -45,6 +45,7 @@ final class Plugin {
 				'exempt_users'   => array(),
 				'hidden_plugins' => array(),
 				'hidden_menu'    => array(),
+				'woo_features'   => array(),
 			)
 		);
 	}

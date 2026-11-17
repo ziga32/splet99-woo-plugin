@@ -11,12 +11,14 @@ final class Settings {
 		'notifications' => 'Hide notifications',
 		'plugins'       => 'Hide plugins',
 		'menu'          => 'Hide menu items',
+		'woo'           => 'WooCommerce',
 	);
 
 	const TAB_FIELDS = array(
 		'notifications' => 'exempt_users',
 		'plugins'       => 'hidden_plugins',
 		'menu'          => 'hidden_menu',
+		'woo'           => 'woo_features',
 	);
 
 	public static function init() {
@@ -105,6 +107,8 @@ final class Settings {
 					self::render_plugins( $settings );
 				} elseif ( 'menu' === $tab ) {
 					self::render_menu( $settings );
+				} elseif ( 'woo' === $tab ) {
+					self::render_woo( $settings );
 				} else {
 					self::render_notifications( $settings );
 				}
@@ -276,6 +280,34 @@ final class Settings {
 				</li>
 			<?php endforeach; ?>
 		</ul>
+		<?php
+	}
+
+	private static function render_woo( $settings ) {
+		$features = (array) $settings['woo_features'];
+		?>
+		<p>Dodatne funkcije za trgovino. Vse so privzeto izklopljene.</p>
+
+		<?php if ( Lowest_Price::snippet_active() ) : ?>
+			<div class="notice notice-warning inline"><p>V <code>functions.php</code> je že snippet za najnižjo ceno (<code>s99_prior_price_incl_tax</code>). Dokler je tam, ta funkcija vtičnika miruje, da se cena ne izpiše dvakrat. Zgodovina cen je skupna, zato se ob odstranitvi snippeta nič ne izgubi.</p></div>
+		<?php endif; ?>
+
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row">Najnižja cena v 30 dneh</th>
+				<td>
+					<label>
+						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Lowest_Price::FEATURE ); ?>" <?php checked( in_array( Lowest_Price::FEATURE, $features, true ) ); ?>>
+						Pri znižanih izdelkih prikaži najnižjo ceno v zadnjih 30 dneh pred znižanjem (ZVPot-1, 15. člen)
+					</label>
+					<p class="description">
+						Samo v slovenskem jeziku. Prečrtana cena postane najnižja cena pred znižanjem, na strani izdelka se pod ceno izpiše
+						&raquo;<?php echo esc_html( Lowest_Price::TEXT ); ?> …&laquo;.<br>
+						Spremembe cen se beležijo od vklopa naprej (zgodovina 120 dni). Za izdelke brez zgodovine se uporabi redna cena.
+					</p>
+				</td>
+			</tr>
+		</table>
 		<?php
 	}
 }

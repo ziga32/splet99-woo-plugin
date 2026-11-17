@@ -21,14 +21,107 @@ final class Odstop {
 	private static $inst = null;
 	private $assets_needed = false;
 
+	const STANDALONE_NAME = 'Splet99 Odstop od pogodbe';
+	const STANDALONE_FILE = 'splet99-odstop-od-pogodbe/splet99-odstop-od-pogodbe.php';
+	const REPLACED_OPT    = 's99od_replaced';
+
+	private static $replaced_now = false;
+
 	public static function init() {
 		add_action( 'plugins_loaded', array( __CLASS__, 'boot' ) );
+		add_action( 'admin_init', array( __CLASS__, 'replace_standalone' ), 1 );
 	}
 
 	public static function enabled() {
-		$settings = Plugin::settings();
+		return Plugin::feature_enabled( self::FEATURE );
+	}
 
-		return in_array( self::FEATURE, (array) $settings['woo_features'], true );
+	public static function replaced_now() {
+		return self::$replaced_now;
+	}
+
+	// Path of the standalone plugin relative to the plugins folder, or '' when it isn't installed.
+	private static function standalone_file() {
+		if ( class_exists( 'S99_Odstop', false ) ) {
+			$ref = new \ReflectionClass( 'S99_Odstop' );
+
+			return plugin_basename( $ref->getFileName() );
+		}
+
+		return file_exists( WP_PLUGIN_DIR . '/' . self::STANDALONE_FILE ) ? self::STANDALONE_FILE : '';
+	}
+
+	// With this feature on, the standalone plugin is deactivated and deleted. Options, page and the register of
+	// withdrawals are shared, so nothing is lost; from the next request on this class takes over.
+	// Only on ordinary admin page loads (not form posts, so a stale settings form can't race it), single site only.
+	public static function replace_standalone() {
+		if ( ! self::enabled() || is_multisite() || wp_doing_ajax() || ! current_user_can( 'activate_plugins' )
+			|| ! isset( $_SERVER['REQUEST_METHOD'] ) || 'GET' !== $_SERVER['REQUEST_METHOD'] ) {
+			return;
+		}
+
+		$file = self::standalone_file();
+
+		// Cases that can't be handled automatically are re-checked once a day, not on every admin page.
+		if ( '' === $file || get_transient( 's99od_replace_skip' ) ) {
+			return;
+		}
+
+		$active   = class_exists( 'S99_Odstop', false );
+		$previous = get_option( self::REPLACED_OPT );
+
+		// Already deactivated earlier and the files couldn't be deleted: don't retry on every admin page.
+		if ( ! $active && is_array( $previous ) && empty( $previous['deleted'] ) ) {
+			return;
+		}
+
+		$can_delete = current_user_can( 'delete_plugins' )
+			&& function_exists( 'get_filesystem_method' )
+			&& 'direct' === get_filesystem_method();
+
+		if ( ! $active && ! $can_delete ) {
+			set_transient( 's99od_replace_skip', 1, DAY_IN_SECONDS );
+			return;
+		}
+
+		if ( ! function_exists( 'get_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		$plugins = get_plugins();
+
+		// Not the expected plugin, or loaded by something other than the plugin list (deleting it would fatal).
+		if ( ! isset( $plugins[ $file ] ) || self::STANDALONE_NAME !== $plugins[ $file ]['Name']
+			|| ( $active && ! is_plugin_active( $file ) ) ) {
+			set_transient( 's99od_replace_skip', 1, DAY_IN_SECONDS );
+			return;
+		}
+
+		if ( is_plugin_active( $file ) ) {
+			deactivate_plugins( $file, true );
+		}
+
+		// An uninstall routine might clean up the shared options, page or register of withdrawals: keep the files then.
+		$uninstall = is_uninstallable_plugin( $file );
+		$deleted   = $can_delete && ! $uninstall && true === delete_plugins( array( $file ) );
+
+		if ( $deleted ) {
+			wp_clean_plugins_cache( false );
+		}
+
+		update_option(
+			self::REPLACED_OPT,
+			array(
+				'time'    => time(),
+				'version' => $plugins[ $file ]['Version'],
+				'deleted' => $deleted,
+				'kept'    => $uninstall ? 'uninstall' : '',
+				'file'    => $file,
+			),
+			false
+		);
+
+		self::$replaced_now = true;
 	}
 
 	// While the standalone plugin is active it does the job; running both would register everything twice.
@@ -48,6 +141,7 @@ final class Odstop {
 
 	private function __construct() {
 		add_action( 'init', array( $this, 'register_cpt' ) );
+		add_action( 'init', array( __CLASS__, 'maybe_create_page' ), 20 );
 		add_shortcode( 'odstop_obrazec', array( $this, 'sc_form' ) );
 		add_shortcode( 'odstop_link', array( $this, 'sc_link' ) );
 
@@ -793,20 +887,56 @@ final class Odstop {
 
 	public function admin_init() {
 		register_setting( 's99od_group', self::OPT, array( 'sanitize_callback' => array( $this, 'sanitize_opts' ) ) );
-		// Only an admin's page load creates the page, under a short lock, so parallel requests can't make two pages.
-		if ( ! get_option( self::PAGE_OPT ) && ! wp_doing_ajax() && current_user_can( 'manage_options' ) ) {
-			$lock = 's99od_page_lock';
-			$held = (int) get_option( $lock );
+	}
 
-			if ( $held && $held < time() - MINUTE_IN_SECONDS ) {
-				delete_option( $lock );
-			}
+	// The first ordinary request after the feature turns on creates the page (links in e-mails and My Account
+	// point to it), under a short lock so parallel requests can't make two pages.
+	public static function maybe_create_page() {
+		global $wpdb;
 
-			if ( add_option( $lock, time(), '', 'no' ) ) {
-				self::ensure_page();
-				delete_option( $lock );
-			}
+		if ( get_option( self::PAGE_OPT ) || wp_doing_ajax() || wp_doing_cron() || get_transient( 's99od_page_retry' ) ) {
+			return;
 		}
+
+		// Atomic lock straight in the options table: add_option() can succeed twice under parallel requests.
+		$lock = 's99od_page_lock';
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND CAST(option_value AS UNSIGNED) < %d", $lock, time() - MINUTE_IN_SECONDS ) );
+
+		if ( 1 !== (int) $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $lock, (string) time() ) ) ) {
+			return;
+		}
+
+		// With WPML the page belongs to the default language, whatever language this visitor is browsing.
+		$lang    = apply_filters( 'wpml_current_language', null );
+		$default = apply_filters( 'wpml_default_language', null );
+
+		if ( $default && $lang !== $default ) {
+			do_action( 'wpml_switch_language', $default );
+		}
+
+		// A new top-level page would otherwise land in menus set to add new pages automatically.
+		$auto_menu = has_action( 'transition_post_status', '_wp_auto_add_pages_to_menu' );
+
+		if ( false !== $auto_menu ) {
+			remove_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu );
+		}
+
+		$page_id = self::ensure_page();
+
+		if ( false !== $auto_menu ) {
+			add_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu, 3 );
+		}
+
+		if ( $default && $lang !== $default ) {
+			do_action( 'wpml_switch_language', $lang );
+		}
+
+		// If the page couldn't be created, try again in an hour rather than on every request.
+		if ( ! $page_id ) {
+			set_transient( 's99od_page_retry', 1, HOUR_IN_SECONDS );
+		}
+
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", $lock ) );
 	}
 
 	public function sanitize_opts( $in ) {

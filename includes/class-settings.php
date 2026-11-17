@@ -70,6 +70,11 @@ final class Settings {
 				$stored[ $field ] = array_values( array_filter( array_map( 'trim', array_map( 'wp_strip_all_tags', $values ) ) ) );
 			}
 
+			// Every feature shown on the form is now an explicit choice, so its default no longer applies.
+			if ( 'woo_features' === $field ) {
+				$stored['woo_decided'] = array_keys( Plugin::WOO_FEATURE_DEFAULTS );
+			}
+
 			$saved_tabs           = isset( $stored['saved_tabs'] ) ? (array) $stored['saved_tabs'] : array();
 			$stored['saved_tabs'] = array_values( array_unique( array_merge( $saved_tabs, array( $field ) ) ) );
 
@@ -284,9 +289,14 @@ final class Settings {
 	}
 
 	private static function render_woo( $settings ) {
-		$features = (array) $settings['woo_features'];
+		$lowest_on   = Plugin::feature_enabled( Lowest_Price::FEATURE );
+		$odstop_on   = Plugin::feature_enabled( Odstop::FEATURE );
+		$standalone  = Odstop::standalone_active() && ! Odstop::replaced_now();
+		$left_file   = is_array( $replaced ) && ! empty( $replaced['file'] ) ? $replaced['file'] : Odstop::STANDALONE_FILE;
+		$left_files  = file_exists( WP_PLUGIN_DIR . '/' . $left_file );
+		$replaced    = get_option( Odstop::REPLACED_OPT );
 		?>
-		<p>Dodatne funkcije za trgovino. Vse so privzeto izklopljene.</p>
+		<p>Dodatne funkcije za trgovino. Najnižja cena je privzeto izklopljena, odstop od pogodbe privzeto vklopljen.</p>
 
 		<?php if ( Lowest_Price::snippet_active() ) : ?>
 			<div class="notice notice-warning inline"><p>V <code>functions.php</code> je že snippet za najnižjo ceno (<code>s99_prior_price_incl_tax</code>). Dokler je tam, ta funkcija vtičnika miruje, da se cena ne izpiše dvakrat. Zgodovina cen je skupna, zato se ob odstranitvi snippeta nič ne izgubi.</p></div>
@@ -297,7 +307,7 @@ final class Settings {
 				<th scope="row">Najnižja cena v 30 dneh</th>
 				<td>
 					<label>
-						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Lowest_Price::FEATURE ); ?>" <?php checked( in_array( Lowest_Price::FEATURE, $features, true ) ); ?>>
+						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Lowest_Price::FEATURE ); ?>" <?php checked( $lowest_on ); ?>>
 						Pri znižanih izdelkih prikaži najnižjo ceno v zadnjih 30 dneh pred znižanjem (ZVPot-1, 15. člen)
 					</label>
 					<p class="description">
@@ -310,18 +320,36 @@ final class Settings {
 			<tr>
 				<th scope="row">Odstop od pogodbe</th>
 				<td>
-					<?php if ( Odstop::standalone_active() ) : ?>
-						<div class="notice notice-warning inline"><p>Aktiven je samostojni vtičnik <strong>Splet99 Odstop od pogodbe</strong>, zato ta funkcija miruje. Če ga deaktiviraš in tu vklopiš funkcijo, ostanejo nastavitve, stran in vsi oddani odstopi.</p></div>
-					<?php elseif ( ! in_array( Odstop::FEATURE, $features, true ) && 'publish' === get_post_status( (int) get_option( 's99od_page_id' ) ) ) : ?>
+					<?php if ( $standalone && $odstop_on ) : ?>
+						<div class="notice notice-warning inline"><p>Samostojni vtičnik <strong>Splet99 Odstop od pogodbe</strong> je še aktiven, ker ga ni bilo mogoče samodejno zamenjati (večstranska namestitev, druga različica ali ga nalaga nekaj drugega). Dokler je aktiven, ta funkcija miruje. Deaktiviraj ga ročno; nastavitve, stran in oddani odstopi ostanejo.</p></div>
+					<?php elseif ( $standalone ) : ?>
+						<div class="notice notice-warning inline"><p>Aktiven je samostojni vtičnik <strong>Splet99 Odstop od pogodbe</strong>, ta funkcija pa je izklopljena. Ko jo vklopiš, se samostojni vtičnik samodejno deaktivira in izbriše; nastavitve, stran in vsi oddani odstopi ostanejo.</p></div>
+					<?php elseif ( ! $odstop_on && 'publish' === get_post_status( (int) get_option( 's99od_page_id' ) ) ) : ?>
 						<div class="notice notice-error inline"><p>Stran za odstop od pogodbe obstaja, a funkcija ni vklopljena: obrazec na strani in povezave v Mojem računu ter e-pošti ne delujejo. Vklopi funkcijo ali stran umakni.</p></div>
 					<?php endif; ?>
+					<?php if ( is_array( $replaced ) && isset( $replaced['time'] ) ) : ?>
+						<div class="notice notice-info inline"><p>
+							Samostojni vtičnik Splet99 Odstop od pogodbe <?php echo esc_html( isset( $replaced['version'] ) ? $replaced['version'] : '' ); ?> je bil
+							<?php echo esc_html( wp_date( 'j. n. Y H:i', (int) $replaced['time'] ) ); ?> samodejno zamenjan s to funkcijo<?php
+							if ( ! empty( $replaced['deleted'] ) ) {
+								echo ' in izbrisan.';
+							} elseif ( ! $left_files ) {
+								echo ' in deaktiviran.';
+							} elseif ( ! empty( $replaced['kept'] ) ) {
+								echo ' in deaktiviran. Datoteke so namenoma ostale, ker ima vtičnik rutino za odstranitev, ki bi lahko pobrisala nastavitve in evidenco odstopov. Mapo <code>' . esc_html( dirname( $left_file ) ) . '</code> odstrani prek FTP ali upravitelja datotek, <strong>ne</strong> z Vtičniki → Izbriši.';
+							} else {
+								echo ' in deaktiviran. Datotek ni bilo mogoče izbrisati, zato ga izbriši ročno med vtičniki.';
+							}
+							?>
+						</p></div>
+					<?php endif; ?>
 					<label>
-						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Odstop::FEATURE ); ?>" <?php checked( in_array( Odstop::FEATURE, $features, true ) ); ?>>
+						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Odstop::FEATURE ); ?>" <?php checked( $odstop_on ); ?>>
 						Funkcija za odstop od pogodbe na daljavo (ZVPot-1A, 138.a člen)
 					</label>
 					<p class="description">
-						Stran z obrazcem (ustvari se sama), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
-						<?php if ( in_array( Odstop::FEATURE, $features, true ) && ! Odstop::standalone_active() ) : ?>
+						Stran z obrazcem (ustvari se sama ali prevzame obstoječo), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
+						<?php if ( $odstop_on && ! $standalone ) : ?>
 							<br>Nastavitve: <a href="<?php echo esc_url( admin_url( 'options-general.php?page=s99od' ) ); ?>">Nastavitve → Odstop od pogodbe</a> · stran: <a href="<?php echo esc_url( Odstop::form_page_url() ); ?>" target="_blank"><?php echo esc_html( Odstop::form_page_url() ); ?></a>
 						<?php endif; ?>
 					</p>

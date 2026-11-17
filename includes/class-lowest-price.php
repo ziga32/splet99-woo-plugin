@@ -32,9 +32,7 @@ final class Lowest_Price {
 	}
 
 	public static function enabled() {
-		$settings = Plugin::settings();
-
-		return in_array( self::FEATURE, (array) $settings['woo_features'], true );
+		return Plugin::feature_enabled( self::FEATURE );
 	}
 
 	// The snippet already does the same job; both together would print the line twice.

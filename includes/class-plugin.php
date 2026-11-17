@@ -22,6 +22,12 @@ final class Plugin {
 	// Submenu items in a hidden menu are stored as "parent|child".
 	const MENU_SEPARATOR = '|';
 
+	// Features on the WooCommerce tab and whether each is on until the owner decides on that tab.
+	const WOO_FEATURE_DEFAULTS = array(
+		'lowest_price' => false,
+		'odstop'       => true,
+	);
+
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'hide_php_errors' ), 1 );
 		add_action( 'in_admin_header', array( __CLASS__, 'hide_admin_notices' ), PHP_INT_MAX );
@@ -57,6 +63,25 @@ final class Plugin {
 		return is_array( $saved )
 			&& isset( $saved['saved_tabs'] )
 			&& in_array( $key, (array) $saved['saved_tabs'], true );
+	}
+
+	public static function feature_enabled( $feature ) {
+		$stored = get_option( self::OPTION, array() );
+
+		if ( is_array( $stored ) && isset( $stored['woo_decided'] ) ) {
+			$decided = (array) $stored['woo_decided'];
+		} else {
+			// Saves from 0.10.x / 0.11.0 only decided lowest_price; odstop was off by default there.
+			$decided = self::is_saved( 'woo_features' ) ? array( 'lowest_price' ) : array();
+		}
+
+		if ( in_array( $feature, $decided, true ) ) {
+			$settings = self::settings();
+
+			return in_array( $feature, (array) $settings['woo_features'], true );
+		}
+
+		return ! empty( self::WOO_FEATURE_DEFAULTS[ $feature ] );
 	}
 
 	public static function matches_default( $text ) {

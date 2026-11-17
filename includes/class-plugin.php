@@ -24,8 +24,9 @@ final class Plugin {
 
 	// Features on the WooCommerce tab and whether each is on until the owner decides on that tab.
 	const WOO_FEATURE_DEFAULTS = array(
-		'lowest_price' => false,
-		'odstop'       => true,
+		'lowest_price'       => false,
+		'odstop'             => true,
+		'free_shipping_only' => false,
 	);
 
 	public static function init() {

@@ -23,7 +23,19 @@ final class Settings {
 
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'add_page' ) );
+		add_filter( 'plugin_action_links_' . Plugin::own_basename(), array( __CLASS__, 'action_links' ) );
 		add_action( 'admin_post_' . Plugin::OPTION, array( __CLASS__, 'save' ) );
+	}
+
+	// "Nastavitve" link in the plugin's row on the Plugins page (the row is visible to the owner only).
+	public static function action_links( $links ) {
+		$links = (array) $links;
+
+		if ( Plugin::is_owner() ) {
+			array_unshift( $links, '<a href="' . esc_url( self::tab_url( 'notifications' ) ) . '">Nastavitve</a>' );
+		}
+
+		return $links;
 	}
 
 	public static function add_page() {
@@ -73,6 +85,11 @@ final class Settings {
 			// Every feature shown on the form is now an explicit choice, so its default no longer applies.
 			if ( 'woo_features' === $field ) {
 				$stored['woo_decided'] = array_keys( Plugin::WOO_FEATURE_DEFAULTS );
+
+				// Carts keep their calculated shipping rates until the shipping cache version changes.
+				if ( class_exists( '\\WC_Cache_Helper' ) ) {
+					\WC_Cache_Helper::get_transient_version( 'shipping', true );
+				}
 			}
 
 			$saved_tabs           = isset( $stored['saved_tabs'] ) ? (array) $stored['saved_tabs'] : array();
@@ -290,13 +307,14 @@ final class Settings {
 
 	private static function render_woo( $settings ) {
 		$lowest_on   = Plugin::feature_enabled( Lowest_Price::FEATURE );
+		$free_on     = Plugin::feature_enabled( Free_Shipping::FEATURE );
 		$odstop_on   = Plugin::feature_enabled( Odstop::FEATURE );
 		$standalone  = Odstop::standalone_active() && ! Odstop::replaced_now();
+		$replaced    = get_option( Odstop::REPLACED_OPT );
 		$left_file   = is_array( $replaced ) && ! empty( $replaced['file'] ) ? $replaced['file'] : Odstop::STANDALONE_FILE;
 		$left_files  = file_exists( WP_PLUGIN_DIR . '/' . $left_file );
-		$replaced    = get_option( Odstop::REPLACED_OPT );
 		?>
-		<p>Dodatne funkcije za trgovino. Najnižja cena je privzeto izklopljena, odstop od pogodbe privzeto vklopljen.</p>
+		<p>Dodatne funkcije za trgovino. Privzeto je vklopljen samo odstop od pogodbe.</p>
 
 		<?php if ( Lowest_Price::snippet_active() ) : ?>
 			<div class="notice notice-warning inline"><p>V <code>functions.php</code> je že snippet za najnižjo ceno (<code>s99_prior_price_incl_tax</code>). Dokler je tam, ta funkcija vtičnika miruje, da se cena ne izpiše dvakrat. Zgodovina cen je skupna, zato se ob odstranitvi snippeta nič ne izgubi.</p></div>
@@ -353,6 +371,16 @@ final class Settings {
 							<br>Nastavitve: <a href="<?php echo esc_url( admin_url( 'options-general.php?page=s99od' ) ); ?>">Nastavitve → Odstop od pogodbe</a> · stran: <a href="<?php echo esc_url( Odstop::form_page_url() ); ?>" target="_blank"><?php echo esc_html( Odstop::form_page_url() ); ?></a>
 						<?php endif; ?>
 					</p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">Samo brezplačna dostava</th>
+				<td>
+					<label>
+						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Free_Shipping::FEATURE ); ?>" <?php checked( $free_on ); ?>>
+						Ko je na voljo brezplačna dostava, skrij vse ostale načine dostave
+					</label>
+					<p class="description">Velja za način dostave &raquo;Brezplačna dostava&laquo; (free_shipping) v WooCommerce. Skrije tudi osebni prevzem, če je nastavljen kot način dostave.</p>
 				</td>
 			</tr>
 		</table>

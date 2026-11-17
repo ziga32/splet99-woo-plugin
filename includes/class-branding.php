@@ -5,11 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Splet99 branding on the login page, shown to everyone.
+// Login page header "<site name> by Splet99", shown to everyone.
 final class Branding {
-
-	const URL  = 'https://splet99.net';
-	const NAME = 'Splet99 d.o.o.';
 
 	public static function init() {
 		add_action( 'login_enqueue_scripts', array( __CLASS__, 'login_styles' ) );
@@ -22,10 +19,11 @@ final class Branding {
 	}
 
 	public static function login_logo_url() {
-		return self::URL;
+		return home_url( '/' );
 	}
 
+	// wp-login.php prints this unescaped; the "by Splet99" line under it comes from login.css.
 	public static function login_logo_text() {
-		return self::NAME;
+		return esc_html( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) );
 	}
 }

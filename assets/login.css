@@ -21,14 +21,44 @@ body.login #login {
 	padding-top: 8vh;
 }
 
+/* Header: site name, "by", smaller Splet99 logo */
 body.login #login h1 a {
-	background-image: url(splet99-logo.png);
-	background-size: contain;
-	background-position: center;
-	background-repeat: no-repeat;
-	width: 260px;
-	height: 47px;
+	display: block;
+	width: auto;
+	height: auto;
 	margin: 0 auto 28px;
+	padding: 0;
+	overflow: visible;
+	background: none;
+	text-indent: 0;
+	color: var(--s99-text);
+	font-size: 30px;
+	font-weight: 600;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+	text-align: center;
+	text-decoration: none;
+	overflow-wrap: anywhere;
+	box-shadow: none;
+	outline: none;
+}
+
+body.login #login h1 a:focus-visible {
+	outline: 2px solid var(--s99-pink);
+	outline-offset: 6px;
+	border-radius: 6px;
+}
+
+body.login #login h1 a::after {
+	content: "by";
+	display: block;
+	margin-top: 10px;
+	padding-bottom: 32px;
+	background: url(splet99-logo.png) no-repeat center bottom / 150px auto;
+	color: var(--s99-muted);
+	font-size: 13px;
+	font-weight: 400;
+	letter-spacing: 0.06em;
 }
 
 body.login form {

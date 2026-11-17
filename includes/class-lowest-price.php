@@ -254,29 +254,13 @@ final class Lowest_Price {
 		return $prices ? min( $prices ) : $start_regular;
 	}
 
-	/* ---------- display (Slovenian only) ---------- */
+	/* ---------- display (languages ticked on the WooCommerce tab) ---------- */
 
 	// Product IDs whose line was already printed on this page (sticky bars and builder modules repeat the price).
 	private static $printed = array();
 
-	public static function is_slovenian() {
-		if ( function_exists( 'pll_current_language' ) ) {
-			$lang = pll_current_language( 'slug' );
-
-			if ( $lang ) {
-				return in_array( $lang, array( 'sl', 'si' ), true );
-			}
-		}
-
-		if ( defined( 'ICL_LANGUAGE_CODE' ) ) {
-			return in_array( ICL_LANGUAGE_CODE, array( 'sl', 'si' ), true );
-		}
-
-		return 0 === strpos( get_locale(), 'sl' );
-	}
-
 	private static function line( $price ) {
-		return '<span class="s99-lowest-price" style="display:block;font-size:13px;margin-top:5px">' . esc_html( self::TEXT ) . ' ' . wc_price( $price ) . '</span>';
+		return '<span class="s99-lowest-price" style="display:block;font-size:13px;margin-top:5px">' . esc_html( I18n::text( self::TEXT ) ) . ' ' . wc_price( $price ) . '</span>';
 	}
 
 	// Once per page, and only for the product the page is about.
@@ -298,7 +282,12 @@ final class Lowest_Price {
 	}
 
 	private static function shows_on_this_request() {
-		return ( ! is_admin() || wp_doing_ajax() ) && self::is_slovenian();
+		return ( ! is_admin() || wp_doing_ajax() ) && self::base_currency() && I18n::lang_enabled( self::FEATURE );
+	}
+
+	// The price log holds shop-currency amounts; in another currency (WCML, CURCY, WOOCS…) they would be wrong.
+	private static function base_currency() {
+		return ! function_exists( 'get_woocommerce_currency' ) || get_woocommerce_currency() === get_option( 'woocommerce_currency' );
 	}
 
 	// Swaps WooCommerce's own sale markup for ours; markup changed by another plugin is left alone.

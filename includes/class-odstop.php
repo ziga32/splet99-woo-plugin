@@ -193,7 +193,11 @@ final class Odstop {
 
 	private static function link_text() {
 		$t = trim( (string) self::opt( 'link_text' ) );
-		return '' !== $t ? __( $t, 's99-odstop' ) : __( 'Odstop od pogodbe', 's99-odstop' ); // phpcs:ignore
+		// A custom text is Slovenian, so other languages get the translated default.
+		if ( '' === $t || 'sl' !== I18n::lang_key() ) {
+			$t = 'Odstop od pogodbe';
+		}
+		return __( $t, 's99-odstop' ); // phpcs:ignore
 	}
 
 	private static function intro_text() {
@@ -222,34 +226,10 @@ final class Odstop {
 		return implode( ', ', $list );
 	}
 
-	private static function allowed_langs() {
-		$list = array_values( array_filter( array_map( 'trim', explode( ',', (string) self::opt( 'langs' ) ) ) ) );
-		if ( $list ) {
-			return $list;
-		}
-		$def = apply_filters( 'wpml_default_language', null );
-		return $def ? array( strtolower( (string) $def ) ) : array();
-	}
 
-	/**
-	 * Ali se funkcija v danem jeziku prikaže (privzeto samo v privzetem jeziku WPML).
-	 * Brez WPML-ja je vedno true.
-	 */
+	// Languages are chosen on the Splet99 settings → WooCommerce tab (all by default).
 	private static function lang_ok( $lang = '' ) {
-		if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
-			return true;
-		}
-		$allowed = self::allowed_langs();
-		if ( ! $allowed ) {
-			return true;
-		}
-		if ( '' === $lang ) {
-			$lang = apply_filters( 'wpml_current_language', null );
-		}
-		if ( ! $lang || 'all' === $lang ) {
-			return true;
-		}
-		return in_array( strtolower( (string) $lang ), $allowed, true );
+		return I18n::lang_enabled( self::FEATURE, is_string( $lang ) && 'all' !== $lang ? $lang : '' );
 	}
 
 	private static function shop_email() {
@@ -280,7 +260,11 @@ final class Odstop {
 	private static function page_url() {
 		$id = (int) get_option( self::PAGE_OPT );
 		if ( $id ) {
-			$id  = (int) apply_filters( 'wpml_object_id', $id, 'page', true );
+			$id = (int) apply_filters( 'wpml_object_id', $id, 'page', true );
+			if ( function_exists( 'pll_get_post' ) ) {
+				$tr = (int) pll_get_post( $id );
+				$id = $tr ? $tr : $id;
+			}
 			$url = get_permalink( $id );
 			if ( $url ) {
 				return $url;
@@ -289,8 +273,10 @@ final class Odstop {
 		return home_url( '/' . self::SLUG . '/' );
 	}
 
-	private static function fmt_time( $ts ) {
-		return wp_date( 'j. n. Y \o\b H:i:s', (int) $ts );
+	// $fixed: always the Slovenian format (admin register, shop e-mail); otherwise in the visitor's language.
+	private static function fmt_time( $ts, $fixed = false ) {
+		$format = 'j. n. Y \o\b H:i:s';
+		return wp_date( $fixed ? $format : __( 'j. n. Y \o\b H:i:s', 's99-odstop' ), (int) $ts ); // phpcs:ignore
 	}
 
 	private static function ip() {
@@ -313,8 +299,8 @@ final class Odstop {
 		}
 		$new = wp_insert_post(
 			array(
-				'post_title'   => 'Odstop od pogodbe',
-				'post_name'    => self::SLUG,
+				'post_title'   => I18n::text( 'Odstop od pogodbe', I18n::default_code() ),
+				'post_name'    => I18n::page_slug( I18n::default_code() ),
 				'post_content' => '[odstop_obrazec]',
 				'post_status'  => 'publish',
 				'post_type'    => 'page',
@@ -657,15 +643,18 @@ final class Odstop {
 			update_post_meta( $id, 'mail_customer', 'skipped' );
 		}
 
+		// The shop's own notification stays Slovenian, whatever language the customer used.
+		I18n::set_override( 'sl' );
 		$s_headers = array( 'Content-Type: text/html; charset=UTF-8', $from, 'Reply-To: ' . $d['email'] );
 		$s_subject = sprintf( '%sNov odstop od pogodbe: naročilo %s', $verified ? '' : '[NEPREVERJENO] ', $d['order'] );
 		$s_body    = $this->mail_html(
 			'Nov odstop od pogodbe',
 			'Kupec je prek spletne funkcije oddal obvestilo o odstopu od pogodbe.',
 			$d,
-			$when,
+			self::fmt_time( $ts, true ),
 			$verified ? '' : 'Naročila s to številko in e-naslovom ni bilo mogoče samodejno preveriti.'
 		);
+		I18n::set_override( '' );
 		$ok_s = wp_mail( self::shop_recipients(), $s_subject, $s_body, $s_headers );
 		update_post_meta( $id, 'mail_shop', $ok_s ? 'ok' : 'fail' );
 	}
@@ -890,11 +879,21 @@ final class Odstop {
 	}
 
 	// The first ordinary request after the feature turns on creates the page (links in e-mails and My Account
-	// point to it), under a short lock so parallel requests can't make two pages.
+	// point to it), and in a multilingual shop one translated page per enabled language. Runs under a short
+	// lock so parallel requests can't make duplicates.
 	public static function maybe_create_page() {
 		global $wpdb;
 
-		if ( get_option( self::PAGE_OPT ) || wp_doing_ajax() || wp_doing_cron() || get_transient( 's99od_page_retry' ) ) {
+		$page_id = (int) get_option( self::PAGE_OPT );
+
+		if ( $page_id && ! self::missing_page_langs( $page_id ) ) {
+			return;
+		}
+
+		// Only ordinary front-end page views, so WPML's admin/REST save handling can't interfere.
+		if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || wp_is_json_request()
+			|| ! isset( $_SERVER['REQUEST_METHOD'] ) || 'GET' !== $_SERVER['REQUEST_METHOD']
+			|| get_transient( 's99od_page_retry' ) ) {
 			return;
 		}
 
@@ -906,7 +905,12 @@ final class Odstop {
 			return;
 		}
 
-		// With WPML the page belongs to the default language, whatever language this visitor is browsing.
+		// Another request may have just finished; work from fresh values.
+		wp_cache_delete( self::PAGE_OPT, 'options' );
+		wp_cache_delete( 's99od_page_langs', 'options' );
+		$page_id = (int) get_option( self::PAGE_OPT );
+
+		// With WPML the main page belongs to the default language, whatever language this visitor is browsing.
 		$lang    = apply_filters( 'wpml_current_language', null );
 		$default = apply_filters( 'wpml_default_language', null );
 
@@ -914,14 +918,40 @@ final class Odstop {
 			do_action( 'wpml_switch_language', $default );
 		}
 
-		// A new top-level page would otherwise land in menus set to add new pages automatically.
+		// New top-level pages would otherwise land in menus set to add new pages automatically.
 		$auto_menu = has_action( 'transition_post_status', '_wp_auto_add_pages_to_menu' );
 
 		if ( false !== $auto_menu ) {
 			remove_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu );
 		}
 
-		$page_id = self::ensure_page();
+		$ok = true;
+
+		if ( ! $page_id ) {
+			$page_id = self::ensure_page();
+			$ok      = (bool) $page_id;
+		}
+
+		if ( $page_id ) {
+			$done = self::done_page_langs( $page_id );
+
+			foreach ( self::missing_page_langs( $page_id ) as $code ) {
+				if ( self::ensure_translation( $page_id, $code ) ) {
+					$done[] = $code;
+				} else {
+					$ok = false;
+				}
+			}
+
+			update_option(
+				's99od_page_langs',
+				array(
+					'page'  => $page_id,
+					'langs' => array_values( array_unique( $done ) ),
+				),
+				true
+			);
+		}
 
 		if ( false !== $auto_menu ) {
 			add_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu, 3 );
@@ -931,12 +961,113 @@ final class Odstop {
 			do_action( 'wpml_switch_language', $lang );
 		}
 
-		// If the page couldn't be created, try again in an hour rather than on every request.
-		if ( ! $page_id ) {
+		// If something couldn't be created, try again in an hour rather than on every request.
+		if ( ! $ok ) {
 			set_transient( 's99od_page_retry', 1, HOUR_IN_SECONDS );
 		}
 
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", $lock ) );
+	}
+
+	// Languages whose page is known to exist for this main page (the list resets if the main page changes).
+	private static function done_page_langs( $page_id ) {
+		$stored = get_option( 's99od_page_langs', array() );
+
+		return is_array( $stored ) && isset( $stored['page'], $stored['langs'] ) && (int) $stored['page'] === (int) $page_id
+			? (array) $stored['langs']
+			: array();
+	}
+
+	// Enabled languages that still need their own page (WPML / Polylang only).
+	private static function missing_page_langs( $page_id ) {
+		if ( ! I18n::is_multilingual() || ! ( has_filter( 'wpml_object_id' ) || function_exists( 'pll_get_post_translations' ) ) ) {
+			return array();
+		}
+
+		$wanted = array();
+
+		foreach ( array_keys( I18n::active_languages() ) as $code ) {
+			if ( I18n::lang_enabled( self::FEATURE, $code ) ) {
+				$wanted[] = $code;
+			}
+		}
+
+		return array_values( array_diff( $wanted, self::done_page_langs( $page_id ) ) );
+	}
+
+	// Makes sure the page has a translation in $code; an existing translation is kept as it is.
+	private static function ensure_translation( $page_id, $code ) {
+		$page = array(
+			'post_title'   => I18n::text( 'Odstop od pogodbe', $code ),
+			'post_name'    => I18n::page_slug( $code ),
+			'post_content' => '[odstop_obrazec]',
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+		);
+
+		if ( function_exists( 'pll_get_post_translations' ) && function_exists( 'pll_set_post_language' ) ) {
+			$translations = (array) pll_get_post_translations( $page_id );
+
+			if ( ! empty( $translations[ $code ] ) || ! $translations ) {
+				return true; // Done, or the page has no language yet: nothing to link to.
+			}
+
+			// Draft first, published only once the language is confirmed.
+			$new = wp_insert_post( array_merge( $page, array( 'post_status' => 'draft' ) ), true );
+
+			if ( is_wp_error( $new ) || ! $new ) {
+				return false;
+			}
+
+			pll_set_post_language( $new, $code );
+
+			// Unknown language code: don't leave a published page without a language behind.
+			if ( ! function_exists( 'pll_get_post_language' ) || pll_get_post_language( $new ) !== $code ) {
+				wp_delete_post( $new, true );
+				return false;
+			}
+
+			$translations[ $code ] = $new;
+			pll_save_post_translations( $translations );
+			wp_publish_post( $new );
+
+			return true;
+		}
+
+		if ( apply_filters( 'wpml_object_id', $page_id, 'page', false, $code ) ) {
+			return true;
+		}
+
+		$trid   = apply_filters( 'wpml_element_trid', null, $page_id, 'post_page' );
+		$source = apply_filters( 'wpml_element_language_code', null, array( 'element_id' => $page_id, 'element_type' => 'page' ) );
+
+		if ( ! $trid || ! $source ) {
+			return false;
+		}
+
+		// Created while WPML is in the target language, so it is never default-language content (no automatic
+		// translation jobs) before it joins the main page's translation group.
+		$before = apply_filters( 'wpml_current_language', null );
+		do_action( 'wpml_switch_language', $code );
+		$new = wp_insert_post( $page, true );
+		do_action( 'wpml_switch_language', $before );
+
+		if ( is_wp_error( $new ) || ! $new ) {
+			return false;
+		}
+
+		do_action(
+			'wpml_set_element_language_details',
+			array(
+				'element_id'           => $new,
+				'element_type'         => 'post_page',
+				'trid'                 => $trid,
+				'language_code'        => $code,
+				'source_language_code' => $source,
+			)
+		);
+
+		return true;
 	}
 
 	public function sanitize_opts( $in ) {
@@ -950,7 +1081,7 @@ final class Odstop {
 			'emails'    => empty( $in['emails'] ) ? 0 : 1,
 			'sidebar'   => empty( $in['sidebar'] ) ? 0 : 1,
 			'strict'    => empty( $in['strict'] ) ? 0 : 1,
-			'langs'     => self::clean_langs( isset( $in['langs'] ) ? $in['langs'] : '' ),
+			'langs'     => isset( $in['langs'] ) ? self::clean_langs( $in['langs'] ) : (string) self::opt( 'langs' ),
 		);
 	}
 
@@ -984,9 +1115,8 @@ final class Odstop {
 						<td><label><input type="checkbox" name="<?php echo esc_attr( self::OPT ); ?>[popup]" value="1" <?php checked( $o['popup'], 1 ); ?>> Povezave na stran odpri v popupu (brez JS se odpre stran)</label></td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="s99od_langs">Jeziki (WPML)</label></th>
-						<td><input type="text" id="s99od_langs" class="regular-text" name="<?php echo esc_attr( self::OPT ); ?>[langs]" value="<?php echo esc_attr( $o['langs'] ); ?>" placeholder="<?php echo esc_attr( implode( ', ', self::allowed_langs() ) ); ?>">
-						<p class="description">V katerih jezikih se povezava prikaže v Mojem računu, e-pošti in nogi (kode ločene z vejico, npr. <code>sl</code>). Prazno = samo privzeti jezik WPML. Brez WPML-ja je povezava povsod.</p></td>
+						<th scope="row">Jeziki</th>
+						<td><p class="description">V večjezičnih trgovinah deluje v vseh jezikih z vgrajenimi prevodi (sl, hr, bs, sr, en, de, it, es; ostali angleško). Jezike izbere Splet99.</p></td>
 					</tr>
 					<tr>
 						<th scope="row">Strogo preverjanje naročil</th>
@@ -1023,7 +1153,7 @@ final class Odstop {
 			'E-pošta'             => get_post_meta( $post->ID, 'email', true ),
 			'Naročilo / pogodba'  => get_post_meta( $post->ID, 'order', true ),
 			'Komentar'            => get_post_meta( $post->ID, 'comment', true ),
-			'Oddano'              => self::fmt_time( (int) get_post_meta( $post->ID, 'submitted_ts', true ) ),
+			'Oddano'              => self::fmt_time( (int) get_post_meta( $post->ID, 'submitted_ts', true ), true ),
 			'Potrdilo kupcu'      => get_post_meta( $post->ID, 'mail_customer', true ),
 			'Obvestilo trgovcu'   => get_post_meta( $post->ID, 'mail_shop', true ),
 			'Jezik'               => get_post_meta( $post->ID, 'lang', true ),
@@ -1052,7 +1182,7 @@ final class Odstop {
 		if ( 's99_email' === $col ) {
 			echo esc_html( (string) get_post_meta( $id, 'email', true ) );
 		} elseif ( 's99_time' === $col ) {
-			echo esc_html( self::fmt_time( (int) get_post_meta( $id, 'submitted_ts', true ) ) );
+			echo esc_html( self::fmt_time( (int) get_post_meta( $id, 'submitted_ts', true ), true ) );
 		} elseif ( 's99_spam' === $col ) {
 			echo get_post_meta( $id, 'spam', true ) ? '<strong>DA</strong>' : '—';
 		} elseif ( 's99_mail' === $col ) {

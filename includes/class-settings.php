@@ -86,6 +86,20 @@ final class Settings {
 			if ( 'woo_features' === $field ) {
 				$stored['woo_decided'] = array_keys( Plugin::WOO_FEATURE_DEFAULTS );
 
+				// Languages are stored as the unticked ones, so a language added to the shop later is on.
+				if ( I18n::is_multilingual() ) {
+					$posted = isset( $_POST['woo_lang_on'] ) ? (array) wp_unslash( $_POST['woo_lang_on'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+					$active = array_keys( I18n::active_languages() );
+					$off    = isset( $stored['woo_lang_off'] ) ? (array) $stored['woo_lang_off'] : array();
+
+					foreach ( array( Lowest_Price::FEATURE, Odstop::FEATURE ) as $feature ) {
+						$on              = isset( $posted[ $feature ] ) ? array_map( 'strtolower', array_map( 'sanitize_text_field', (array) $posted[ $feature ] ) ) : array();
+						$off[ $feature ] = array_values( array_diff( $active, $on ) );
+					}
+
+					$stored['woo_lang_off'] = $off;
+				}
+
 				// Carts keep their calculated shipping rates until the shipping cache version changes.
 				if ( class_exists( '\\WC_Cache_Helper' ) ) {
 					\WC_Cache_Helper::get_transient_version( 'shipping', true );
@@ -328,9 +342,10 @@ final class Settings {
 						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Lowest_Price::FEATURE ); ?>" <?php checked( $lowest_on ); ?>>
 						Pri znižanih izdelkih prikaži najnižjo ceno v zadnjih 30 dneh pred znižanjem (ZVPot-1, 15. člen)
 					</label>
+					<?php self::render_langs( Lowest_Price::FEATURE ); ?>
 					<p class="description">
-						Samo v slovenskem jeziku. Prečrtana cena postane najnižja cena pred znižanjem, na strani izdelka se pod ceno izpiše
-						&raquo;<?php echo esc_html( Lowest_Price::TEXT ); ?> …&laquo;.<br>
+						Prečrtana cena postane najnižja cena pred znižanjem, na strani izdelka se pod ceno izpiše
+						&raquo;<?php echo esc_html( Lowest_Price::TEXT ); ?> …&laquo; (v jeziku obiskovalca).<br>
 						Spremembe cen se beležijo od vklopa naprej (zgodovina 120 dni). Za izdelke brez zgodovine se uporabi redna cena.
 					</p>
 				</td>
@@ -365,6 +380,7 @@ final class Settings {
 						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Odstop::FEATURE ); ?>" <?php checked( $odstop_on ); ?>>
 						Funkcija za odstop od pogodbe na daljavo (ZVPot-1A, 138.a člen)
 					</label>
+					<?php self::render_langs( Odstop::FEATURE ); ?>
 					<p class="description">
 						Stran z obrazcem (ustvari se sama ali prevzame obstoječo), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
 						<?php if ( $odstop_on && ! $standalone ) : ?>
@@ -384,6 +400,24 @@ final class Settings {
 				</td>
 			</tr>
 		</table>
+		<?php
+	}
+
+	// Language checkboxes under a feature (multilingual shops only).
+	private static function render_langs( $feature ) {
+		if ( ! I18n::is_multilingual() ) {
+			return;
+		}
+		?>
+		<p style="margin:8px 0 0 24px">
+			Jeziki:
+			<?php foreach ( I18n::active_languages() as $code => $name ) : ?>
+				<label style="margin-right:12px">
+					<input type="checkbox" name="woo_lang_on[<?php echo esc_attr( $feature ); ?>][]" value="<?php echo esc_attr( $code ); ?>" <?php checked( I18n::lang_enabled( $feature, $code ) ); ?>>
+					<?php echo esc_html( $name ); ?> <code><?php echo esc_html( $code ); ?></code>
+				</label>
+			<?php endforeach; ?>
+		</p>
 		<?php
 	}
 }

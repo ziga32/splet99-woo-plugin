@@ -307,6 +307,26 @@ final class Settings {
 					</p>
 				</td>
 			</tr>
+			<tr>
+				<th scope="row">Odstop od pogodbe</th>
+				<td>
+					<?php if ( Odstop::standalone_active() ) : ?>
+						<div class="notice notice-warning inline"><p>Aktiven je samostojni vtičnik <strong>Splet99 Odstop od pogodbe</strong>, zato ta funkcija miruje. Če ga deaktiviraš in tu vklopiš funkcijo, ostanejo nastavitve, stran in vsi oddani odstopi.</p></div>
+					<?php elseif ( ! in_array( Odstop::FEATURE, $features, true ) && 'publish' === get_post_status( (int) get_option( 's99od_page_id' ) ) ) : ?>
+						<div class="notice notice-error inline"><p>Stran za odstop od pogodbe obstaja, a funkcija ni vklopljena: obrazec na strani in povezave v Mojem računu ter e-pošti ne delujejo. Vklopi funkcijo ali stran umakni.</p></div>
+					<?php endif; ?>
+					<label>
+						<input type="checkbox" name="woo_features[]" value="<?php echo esc_attr( Odstop::FEATURE ); ?>" <?php checked( in_array( Odstop::FEATURE, $features, true ) ); ?>>
+						Funkcija za odstop od pogodbe na daljavo (ZVPot-1A, 138.a člen)
+					</label>
+					<p class="description">
+						Stran z obrazcem (ustvari se sama), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
+						<?php if ( in_array( Odstop::FEATURE, $features, true ) && ! Odstop::standalone_active() ) : ?>
+							<br>Nastavitve: <a href="<?php echo esc_url( admin_url( 'options-general.php?page=s99od' ) ); ?>">Nastavitve → Odstop od pogodbe</a> · stran: <a href="<?php echo esc_url( Odstop::form_page_url() ); ?>" target="_blank"><?php echo esc_html( Odstop::form_page_url() ); ?></a>
+						<?php endif; ?>
+					</p>
+				</td>
+			</tr>
 		</table>
 		<?php
 	}

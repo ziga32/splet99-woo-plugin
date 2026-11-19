@@ -19,7 +19,7 @@ final class Plugin {
 	// Admin bar items whose ID or title contains any of these words are hidden.
 	const ADMIN_BAR_HIDE = array( 'novamira' );
 
-	// Plugins and top-level menu items matching these words are hidden until that tab is saved for the first time.
+	// Plugins and top-level menu items matching these words are hidden until that tab is saved for the first time, unless Ghost Mode is on.
 	const DEFAULT_HIDDEN = array( 'novamira' );
 
 	// Submenu items in a hidden menu are stored as "parent|child".
@@ -128,8 +128,25 @@ final class Plugin {
 		add_option( self::INSTALL_OPT, SPLET99_WOO_VERSION );
 	}
 
+	// Novamira Pro's Ghost Mode hides Novamira from other administrators itself, so nothing is hidden by default then.
+	public static function ghost_mode_on() {
+		if ( ! function_exists( 'Novamira\\GhostMode\\read_policy' ) || ! function_exists( 'Novamira\\GhostMode\\is_active' ) ) {
+			return false;
+		}
+
+		try {
+			return (bool) \Novamira\GhostMode\is_active( \Novamira\GhostMode\read_policy() );
+		} catch ( \Throwable $e ) {
+			return false;
+		}
+	}
+
+	public static function default_hidden() {
+		return self::ghost_mode_on() ? array() : self::DEFAULT_HIDDEN;
+	}
+
 	public static function matches_default( $text ) {
-		foreach ( self::DEFAULT_HIDDEN as $needle ) {
+		foreach ( self::default_hidden() as $needle ) {
 			if ( false !== stripos( (string) $text, $needle ) ) {
 				return true;
 			}

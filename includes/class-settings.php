@@ -258,7 +258,11 @@ final class Settings {
 			return;
 		}
 		?>
-		<p><em>Privzeto so označeni elementi, ki vsebujejo: <code><?php echo esc_html( implode( ', ', Plugin::DEFAULT_HIDDEN ) ); ?></code>. Po prvem shranjevanju velja tvoja izbira.</em></p>
+		<?php if ( Plugin::ghost_mode_on() ) : ?>
+			<p><em>Privzeto ni označeno nič: Novamiro pred ostalimi administratorji skriva njen Ghost Mode. Po prvem shranjevanju velja tvoja izbira.</em></p>
+		<?php else : ?>
+			<p><em>Privzeto so označeni elementi, ki vsebujejo: <code><?php echo esc_html( implode( ', ', Plugin::DEFAULT_HIDDEN ) ); ?></code>. Po prvem shranjevanju velja tvoja izbira.</em></p>
+		<?php endif; ?>
 		<?php
 	}
 

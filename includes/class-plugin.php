@@ -11,6 +11,9 @@ final class Plugin {
 	const PAGE   = 'splet99-woo-settings';
 	const OPTION = 'splet99_woo_settings';
 
+	// Set on install; a site without it ran a version older than 0.15.0.
+	const INSTALL_OPT = 'splet99_woo_install';
+
 	const DASHBOARD_KEEP = array( 'woocommerce_dashboard_status' );
 
 	// Admin bar items whose ID or title contains any of these words are hidden.
@@ -26,10 +29,14 @@ final class Plugin {
 	const WOO_FEATURE_DEFAULTS = array(
 		'lowest_price'       => false,
 		'odstop'             => true,
-		'free_shipping_only' => false,
+		'free_shipping_only' => true,
 	);
 
+	// Features whose default was switched on later; shops that ran an older version keep them off.
+	const LATER_DEFAULTS = array( 'free_shipping_only' );
+
 	public static function init() {
+		add_action( 'plugins_loaded', array( __CLASS__, 'mark_install' ) );
 		add_action( 'init', array( __CLASS__, 'hide_php_errors' ), 1 );
 		add_action( 'in_admin_header', array( __CLASS__, 'hide_admin_notices' ), PHP_INT_MAX );
 		add_action( 'admin_head', array( __CLASS__, 'hide_admin_notices_css' ) );
@@ -66,23 +73,59 @@ final class Plugin {
 			&& in_array( $key, (array) $saved['saved_tabs'], true );
 	}
 
-	public static function feature_enabled( $feature ) {
+	// Features the owner has saved on the WooCommerce tab, so their defaults no longer apply.
+	private static function decided_features() {
 		$stored = get_option( self::OPTION, array() );
 
 		if ( is_array( $stored ) && isset( $stored['woo_decided'] ) ) {
-			$decided = (array) $stored['woo_decided'];
-		} else {
-			// Saves from 0.10.x / 0.11.0 only decided lowest_price; odstop was off by default there.
-			$decided = self::is_saved( 'woo_features' ) ? array( 'lowest_price' ) : array();
+			return (array) $stored['woo_decided'];
 		}
 
-		if ( in_array( $feature, $decided, true ) ) {
+		// Saves from 0.10.x / 0.11.0 only decided lowest_price; odstop was off by default there.
+		return self::is_saved( 'woo_features' ) ? array( 'lowest_price' ) : array();
+	}
+
+	public static function feature_enabled( $feature ) {
+		if ( in_array( $feature, self::decided_features(), true ) ) {
 			$settings = self::settings();
 
 			return in_array( $feature, (array) $settings['woo_features'], true );
 		}
 
 		return ! empty( self::WOO_FEATURE_DEFAULTS[ $feature ] );
+	}
+
+	// Fresh installs get the new defaults; on a fresh install the settings option doesn't exist yet.
+	public static function activate() {
+		if ( false !== get_option( self::INSTALL_OPT ) ) {
+			return;
+		}
+
+		if ( false !== get_option( self::OPTION ) ) {
+			self::keep_old_defaults();
+			return;
+		}
+
+		add_option( self::INSTALL_OPT, SPLET99_WOO_VERSION );
+	}
+
+	// Updates don't fire the activation hook, so a shop updated from before 0.15.0 lands here.
+	public static function mark_install() {
+		if ( false === get_option( self::INSTALL_OPT ) ) {
+			self::keep_old_defaults();
+		}
+	}
+
+	// Records the later defaults as decided-off, so updating doesn't change how a live shop behaves.
+	private static function keep_old_defaults() {
+		$stored  = get_option( self::OPTION, array() );
+		$stored  = is_array( $stored ) ? $stored : array();
+		$decided = self::decided_features();
+
+		$stored['woo_decided'] = array_values( array_unique( array_merge( $decided, self::LATER_DEFAULTS ) ) );
+
+		update_option( self::OPTION, $stored );
+		add_option( self::INSTALL_OPT, SPLET99_WOO_VERSION );
 	}
 
 	public static function matches_default( $text ) {

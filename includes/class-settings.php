@@ -8,10 +8,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Settings {
 
 	const TABS = array(
+		'woo'           => 'WooCommerce',
 		'notifications' => 'Hide notifications',
 		'plugins'       => 'Hide plugins',
 		'menu'          => 'Hide menu items',
-		'woo'           => 'WooCommerce',
 	);
 
 	const TAB_FIELDS = array(
@@ -32,7 +32,7 @@ final class Settings {
 		$links = (array) $links;
 
 		if ( Plugin::is_owner() ) {
-			array_unshift( $links, '<a href="' . esc_url( self::tab_url( 'notifications' ) ) . '">Nastavitve</a>' );
+			array_unshift( $links, '<a href="' . esc_url( self::tab_url( 'woo' ) ) . '">Nastavitve</a>' );
 		}
 
 		return $links;
@@ -56,7 +56,7 @@ final class Settings {
 	private static function current_tab() {
 		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 
-		return array_key_exists( $tab, self::TABS ) ? $tab : 'notifications';
+		return array_key_exists( $tab, self::TABS ) ? $tab : 'woo';
 	}
 
 	public static function save() {
@@ -112,7 +112,7 @@ final class Settings {
 			update_option( Plugin::OPTION, $stored );
 		}
 
-		wp_safe_redirect( self::tab_url( $tab ? $tab : 'notifications', array( 'updated' => 1 ) ) );
+		wp_safe_redirect( self::tab_url( $tab ? $tab : 'woo', array( 'updated' => 1 ) ) );
 		exit;
 	}
 
@@ -143,10 +143,10 @@ final class Settings {
 					self::render_plugins( $settings );
 				} elseif ( 'menu' === $tab ) {
 					self::render_menu( $settings );
-				} elseif ( 'woo' === $tab ) {
-					self::render_woo( $settings );
-				} else {
+				} elseif ( 'notifications' === $tab ) {
 					self::render_notifications( $settings );
+				} else {
+					self::render_woo( $settings );
 				}
 
 				submit_button( 'Shrani' );
@@ -328,7 +328,7 @@ final class Settings {
 		$left_file   = is_array( $replaced ) && ! empty( $replaced['file'] ) ? $replaced['file'] : Odstop::STANDALONE_FILE;
 		$left_files  = file_exists( WP_PLUGIN_DIR . '/' . $left_file );
 		?>
-		<p>Dodatne funkcije za trgovino. Privzeto je vklopljen samo odstop od pogodbe.</p>
+		<p>Dodatne funkcije za trgovino. Privzeto sta vklopljena odstop od pogodbe in samo brezplačna dostava.</p>
 
 		<?php if ( Lowest_Price::snippet_active() ) : ?>
 			<div class="notice notice-warning inline"><p>V <code>functions.php</code> je že snippet za najnižjo ceno (<code>s99_prior_price_incl_tax</code>). Dokler je tam, ta funkcija vtičnika miruje, da se cena ne izpiše dvakrat. Zgodovina cen je skupna, zato se ob odstranitvi snippeta nič ne izgubi.</p></div>

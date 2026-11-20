@@ -110,6 +110,11 @@ final class Settings {
 			$stored['saved_tabs'] = array_values( array_unique( array_merge( $saved_tabs, array( $field ) ) ) );
 
 			update_option( Plugin::OPTION, $stored );
+
+			// Odstop now explicitly on: the form pages created as drafts while it was only on by default go live.
+			if ( 'woo_features' === $field && in_array( Odstop::FEATURE, $stored[ $field ], true ) ) {
+				Odstop::publish_drafts();
+			}
 		}
 
 		wp_safe_redirect( self::tab_url( $tab ? $tab : 'woo', array( 'updated' => 1 ) ) );
@@ -363,6 +368,8 @@ final class Settings {
 						<div class="notice notice-warning inline"><p>Aktiven je samostojni vtičnik <strong>Splet99 Odstop od pogodbe</strong>, ta funkcija pa je izklopljena. Ko jo vklopiš, se samostojni vtičnik samodejno deaktivira in izbriše; nastavitve, stran in vsi oddani odstopi ostanejo.</p></div>
 					<?php elseif ( ! $odstop_on && 'publish' === get_post_status( (int) get_option( 's99od_page_id' ) ) ) : ?>
 						<div class="notice notice-error inline"><p>Stran za odstop od pogodbe obstaja, a funkcija ni vklopljena: obrazec na strani in povezave v Mojem računu ter e-pošti ne delujejo. Vklopi funkcijo ali stran umakni.</p></div>
+					<?php elseif ( Odstop::page_is_draft() ) : ?>
+						<div class="notice notice-info inline"><p>Stran za odstop od pogodbe je zaenkrat osnutek. Objavi se, ko ta zavihek shraniš z vklopljeno funkcijo.</p></div>
 					<?php endif; ?>
 					<?php if ( is_array( $replaced ) && isset( $replaced['time'] ) ) : ?>
 						<div class="notice notice-info inline"><p>
@@ -386,7 +393,7 @@ final class Settings {
 					</label>
 					<?php self::render_langs( Odstop::FEATURE ); ?>
 					<p class="description">
-						Stran z obrazcem (ustvari se sama ali prevzame obstoječo), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
+						Stran z obrazcem (ustvari se sama kot osnutek in se objavi ob shranjevanju z vklopljeno funkcijo, ali prevzame obstoječo), popup, potrdilo kupcu po e-pošti, evidenca v meniju <em>Odstopi od pogodbe</em>, povezava v Mojem računu in v e-pošti o naročilu.
 						<?php if ( $odstop_on && ! $standalone ) : ?>
 							<br>Nastavitve: <a href="<?php echo esc_url( admin_url( 'options-general.php?page=s99od' ) ); ?>">Nastavitve → Odstop od pogodbe</a> · stran: <a href="<?php echo esc_url( Odstop::form_page_url() ); ?>" target="_blank"><?php echo esc_html( Odstop::form_page_url() ); ?></a>
 						<?php endif; ?>

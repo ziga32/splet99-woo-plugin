@@ -85,8 +85,13 @@ final class Plugin {
 		return self::is_saved( 'woo_features' ) ? array( 'lowest_price' ) : array();
 	}
 
+	// True once the owner has saved the WooCommerce tab with this feature on the form.
+	public static function feature_decided( $feature ) {
+		return in_array( $feature, self::decided_features(), true );
+	}
+
 	public static function feature_enabled( $feature ) {
-		if ( in_array( $feature, self::decided_features(), true ) ) {
+		if ( self::feature_decided( $feature ) ) {
 			$settings = self::settings();
 
 			return in_array( $feature, (array) $settings['woo_features'], true );

@@ -3,7 +3,7 @@
  * Plugin Name:          Splet99 Woo
  * Plugin URI:           https://github.com/ziga32/splet99-woo-plugin
  * Description:          Orodja Splet99 za spletne trgovine WooCommerce, ki jih vzdržujemo.
- * Version:              0.15.1
+ * Version:              0.15.2
  * Requires at least:    6.0
  * Requires PHP:         7.4
  * Requires Plugins:     woocommerce
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SPLET99_WOO_VERSION', '0.15.1' );
+define( 'SPLET99_WOO_VERSION', '0.15.2' );
 define( 'SPLET99_WOO_FILE', __FILE__ );
 define( 'SPLET99_WOO_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SPLET99_WOO_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +31,7 @@ require_once SPLET99_WOO_DIR . 'includes/class-i18n.php';
 require_once SPLET99_WOO_DIR . 'includes/class-lowest-price.php';
 require_once SPLET99_WOO_DIR . 'includes/class-odstop.php';
 require_once SPLET99_WOO_DIR . 'includes/class-free-shipping.php';
+require_once SPLET99_WOO_DIR . 'includes/class-columns.php';
 
 register_activation_hook( SPLET99_WOO_FILE, array( \Splet99\Woo\Plugin::class, 'activate' ) );
 
@@ -41,6 +42,7 @@ register_activation_hook( SPLET99_WOO_FILE, array( \Splet99\Woo\Plugin::class, '
 \Splet99\Woo\Lowest_Price::init();
 \Splet99\Woo\Odstop::init();
 \Splet99\Woo\Free_Shipping::init();
+\Splet99\Woo\Columns::init();
 
 add_action( 'before_woocommerce_init', function () {
 	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {

@@ -14,6 +14,7 @@ final class Odstop {
 
 	const OPT      = 's99od_opts';
 	const PAGE_OPT = 's99od_page_id';
+	const DRAFTS_OPT = 's99od_draft_pages';
 	const CPT      = 's99_odstop';
 	const SLUG     = 'odstop-od-pogodbe';
 	const ENDPOINT = 'odstop-od-pogodbe';
@@ -302,15 +303,67 @@ final class Odstop {
 				'post_title'   => I18n::text( 'Odstop od pogodbe', I18n::default_code() ),
 				'post_name'    => I18n::page_slug( I18n::default_code() ),
 				'post_content' => '[odstop_obrazec]',
-				'post_status'  => 'publish',
+				'post_status'  => self::new_page_status(),
 				'post_type'    => 'page',
 			)
 		);
 		if ( $new && ! is_wp_error( $new ) ) {
 			update_option( self::PAGE_OPT, (int) $new );
+			self::remember_draft( $new );
 			return (int) $new;
 		}
 		return 0;
+	}
+
+	// While the feature is only on by default (the owner hasn't saved the WooCommerce tab), new pages are drafts.
+	private static function new_page_status() {
+		return Plugin::feature_decided( self::FEATURE ) ? 'publish' : 'draft';
+	}
+
+	// Pages this class created as drafts, published once the owner turns the feature on.
+	private static function remember_draft( $id ) {
+		if ( 'draft' !== get_post_status( $id ) ) {
+			return;
+		}
+
+		$ids   = (array) get_option( self::DRAFTS_OPT, array() );
+		$ids[] = (int) $id;
+
+		update_option( self::DRAFTS_OPT, array_values( array_unique( array_map( 'intval', $ids ) ) ), false );
+	}
+
+	public static function page_is_draft() {
+		$id = (int) get_option( self::PAGE_OPT );
+
+		return $id && 'draft' === get_post_status( $id ) && in_array( $id, (array) get_option( self::DRAFTS_OPT, array() ), true );
+	}
+
+	// Publishes only the drafts this class created; a page the owner unpublished on purpose stays as it is.
+	public static function publish_drafts() {
+		$ids = (array) get_option( self::DRAFTS_OPT, array() );
+
+		if ( ! $ids ) {
+			return;
+		}
+
+		// Publishing would otherwise add them to menus set to add new pages automatically.
+		$auto_menu = has_action( 'transition_post_status', '_wp_auto_add_pages_to_menu' );
+
+		if ( false !== $auto_menu ) {
+			remove_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu );
+		}
+
+		foreach ( $ids as $id ) {
+			if ( 'draft' === get_post_status( (int) $id ) ) {
+				wp_publish_post( (int) $id );
+			}
+		}
+
+		if ( false !== $auto_menu ) {
+			add_action( 'transition_post_status', '_wp_auto_add_pages_to_menu', $auto_menu, 3 );
+		}
+
+		delete_option( self::DRAFTS_OPT );
 	}
 
 	public function register_cpt() {
@@ -1001,7 +1054,8 @@ final class Odstop {
 			'post_title'   => I18n::text( 'Odstop od pogodbe', $code ),
 			'post_name'    => I18n::page_slug( $code ),
 			'post_content' => '[odstop_obrazec]',
-			'post_status'  => 'publish',
+			// A translation of an already published page goes live; otherwise it waits with the main page.
+			'post_status'  => 'publish' === get_post_status( $page_id ) ? 'publish' : self::new_page_status(),
 			'post_type'    => 'page',
 		);
 
@@ -1029,7 +1083,12 @@ final class Odstop {
 
 			$translations[ $code ] = $new;
 			pll_save_post_translations( $translations );
-			wp_publish_post( $new );
+
+			if ( 'publish' === $page['post_status'] ) {
+				wp_publish_post( $new );
+			} else {
+				self::remember_draft( $new );
+			}
 
 			return true;
 		}
@@ -1066,6 +1125,8 @@ final class Odstop {
 				'source_language_code' => $source,
 			)
 		);
+
+		self::remember_draft( $new );
 
 		return true;
 	}
